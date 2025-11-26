@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missão DBA: O Resgate do Catálogo - Hardcore Mode</title>
+    <style>
+        /* --- ESTILO HACKER / TERMINAL --- */
+        body {
+            background-color: #0d1117; /* Fundo escuro */
+            color: #3fb950; /* Verde Terminal */
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-console {
+            width: 900px;
+            height: 85vh;
+            background-color: #161b22;
+            border: 2px solid #3fb950;
+            box-shadow: 0 0 25px rgba(63, 185, 80, 0.2);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* BARRA SUPERIOR (VIDAS E TEMPO) */
+        #top-bar {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        #lives { color: #ff7b72; text-shadow: 0 0 5px rgba(255, 123, 114, 0.5); }
+        #timer { color: #e3b341; }
+
+        /* TELA DE SAÍDA (MENSAGENS) */
+        #output-screen {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding-right: 10px;
+            font-size: 16px;
+            line-height: 1.6;
+            border-bottom: 1px solid #30363d;
+        }
+
+        /* CORES DAS MENSAGENS */
+        .msg-system { color: #58a6ff; font-weight: bold; margin-top: 10px; }
+        .msg-error { color: #ff7b72; font-weight: bold; }
+        .msg-warning { color: #d29922; font-weight: bold; background-color: rgba(210, 153, 34, 0.1); padding: 5px; border-left: 3px solid #d29922; }
+        .msg-success { color: #3fb950; font-weight: bold; }
+        .msg-npc { color: #d2a8ff; font-style: italic; }
+        .msg-sql { color: #e3b341; background: #21262d; padding: 2px 5px; border-radius: 4px; }
+
+        /* ÁREA DE BOTÕES */
+        #controls-area {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 160px;
+        }
+
+        button {
+            background-color: #238636;
+            color: #ffffff;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #2ea043;
+            transform: translateX(5px);
+            border-color: #3fb950;
+        }
+
+        button:disabled {
+            background-color: #21262d;
+            color: #484f58;
+            cursor: not-allowed;
+            transform: none;
+            border-color: transparent;
+        }
+
+        /* BARRA DE PROGRESSO INFERIOR */
+        #status-bar {
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        #progress-container {
+            width: 60%;
+            height: 8px;
+            background-color: #30363d;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #progress-fill {
+            height: 100%;
+            width: 0%;
+            background-color: #3fb950;
+            transition: width 0.5s ease-in-out;
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="game-console">
+        <div id="top-bar">
+            <span id="lives">VIDAS: [♥♥♥]</span>
+            <span id="timer">TEMPO: 00:00</span>
+        </div>
+
+        <div id="output-screen">
+            <div class="msg-system">INITIALIZING DB_RECOVERY_TOOL_V3.0...</div>
+            <div class="msg-system">SECURITY PROTOCOL: ACTIVE</div>
+            <div class="msg-success">SYSTEM READY.</div>
+            <br>
+            <div class="msg-npc">CLIENTE DA LOJA VIRTUAL DIZ:</div>
+            <div class="msg-npc">"Atenção! O sistema de segurança está instável. Se cometermos 3 erros, o servidor vai bloquear nosso acesso e teremos que reiniciar. Leia com atenção!"</div>
+            <br>
+        </div>
+
+        <div id="controls-area">
+            <!-- Botões gerados via JS -->
+        </div>
+
+        <div id="status-bar">
+            <span id="level-indicator">NÍVEL: 0/15</span>
+            <div id="progress-container">
+                <div id="progress-fill"></div>
+            </div>
+            <span>USER: SYSADMIN</span>
+        </div>
+    </div>
+
+    <script>
+        // --- DADOS DO JOGO (15 Níveis) ---
+        const levels = [
+            // BLOCO 1: ESTRUTURA (DDL)
+            {
+                story: "1. Precisamos criar a tabela principal 'produtos'. Ela precisa de um ID único que se preencha sozinho.",
+                question: "Qual comando cria a tabela corretamente?",
+                options: [
+                    { sql: "CREATE TABLE produtos (id INT, nome VARCHAR(100));", correct: false },
+                    { sql: "CREATE TABLE produtos (id INT PRIMARY KEY AUTO_INCREMENT, nome VARCHAR(100), preco DECIMAL(10,2));", correct: true },
+                    { sql: "INSERT INTO TABLE produtos VALUES (id, nome);", correct: false }
+                ],
+                success: "Tabela criada com PK e Auto_Increment.",
+                fail: "Erro! Faltou definir a Primary Key ou Auto_Increment."
+            },
+            {
+                story: "2. Esquecemos a coluna para a foto do produto! O site não pode ficar sem imagens.",
+                question: "Qual comando altera a estrutura para adicionar 'imagem_url'?",
+                options: [
+                    { sql: "ALTER TABLE produtos ADD imagem_url VARCHAR(255);", correct: true },
+                    { sql: "UPDATE produtos SET imagem_url = 'nova';", correct: false },
+                    { sql: "ALTER TABLE produtos INSERT imagem_url;", correct: false }
+                ],
+                success: "Coluna adicionada via ALTER TABLE.",
+                fail: "Para mudar estrutura (DDL), use ALTER TABLE ADD."
+            },
+            
+            // BLOCO 2: DADOS (DML)
+            {
+                story: "3. Vamos cadastrar o primeiro item: um 'Notebook Dell' custando 3500.00.",
+                question: "Qual comando insere esse registro?",
+                options: [
+                    { sql: "ADD produtos ('Notebook Dell', 3500.00);", correct: false },
+                    { sql: "INSERT INTO produtos (nome, preco) VALUES ('Notebook Dell', 3500.00);", correct: true },
+                    { sql: "SELECT INTO produtos VALUES ...", correct: false }
+                ],
+                success: "Registro inserido com sucesso!",
+                fail: "Use INSERT INTO ... VALUES para adicionar dados."
+            },
+            {
+                story: "4. A inflação pegou! O 'Notebook Dell' agora custa 3800.00. Precisamos corrigir o preço.",
+                question: "Qual comando atualiza apenas esse produto?",
+                options: [
+                    { sql: "UPDATE produtos SET preco = 3800.00 WHERE nome = 'Notebook Dell';", correct: true },
+                    { sql: "UPDATE produtos SET preco = 3800.00;", correct: false },
+                    { sql: "ALTER TABLE produtos CHANGE preco 3800.00;", correct: false }
+                ],
+                success: "Preço atualizado! O WHERE evitou um desastre.",
+                fail: "Cuidado! Sem WHERE, você altera TODOS os preços."
+            },
+            {
+                story: "5. Um estagiário cadastrou um produto chamado 'TESTE_LIXO'. Apague isso agora!",
+                question: "Qual comando remove o registro com segurança?",
+                options: [
+                    { sql: "DELETE FROM produtos WHERE nome = 'TESTE_LIXO';", correct: true },
+                    { sql: "DROP TABLE produtos;", correct: false },
+                    { sql: "DELETE * FROM produtos;", correct: false }
+                ],
+                success: "Registro deletado corretamente.",
+                fail: "DROP apaga a tabela! Use DELETE com WHERE."
+            },
+
+            // BLOCO 3: TIPOS E NORMALIZAÇÃO
+            {
+                story: "6. Precisamos armazenar o telefone do fornecedor, ex: '(11)99999-8888'. Qual o tipo de dado correto?",
+                question: "Escolha o tipo de dado mais adequado:",
+                options: [
+                    { sql: "INT (Inteiro)", correct: false },
+                    { sql: "VARCHAR (Texto Variável)", correct: true },
+                    { sql: "FLOAT (Decimal)", correct: false }
+                ],
+                success: "Exato! Telefones têm caracteres especiais '()-', então usamos VARCHAR.",
+                fail: "Errado. INT não aceita parênteses ou traços. Use VARCHAR."
+            },
+            {
+                story: "7. Na tabela 'fornecedores', o endereço está assim: 'Rua A, 10, Centro'. Isso viola a 1ª Forma Normal (1FN).",
+                question: "Como resolver essa violação?",
+                options: [
+                    { sql: "Deixar tudo junto.", correct: false },
+                    { sql: "Dividir em colunas atômicas: logradouro, numero, bairro.", correct: true },
+                    { sql: "Criar uma tabela só para números.", correct: false }
+                ],
+                success: "Correto! Dados devem ser atômicos (indivisíveis) na 1FN.",
+                fail: "A 1FN exige que separemos informações compostas."
+            },
+
+            // BLOCO 4: CONSULTAS (DQL)
+            {
+                story: "8. O chefe quer ver os produtos do mais barato para o mais caro.",
+                question: "Qual a ordenação correta?",
+                options: [
+                    { sql: "ORDER BY preco DESC", correct: false },
+                    { sql: "ORDER BY preco ASC", correct: true },
+                    { sql: "SORT BY preco", correct: false }
+                ],
+                success: "Listagem gerada em ordem ascendente (ASC).",
+                fail: "DESC é decrescente (caro -> barato). Use ASC."
+            },
+            {
+                story: "9. Precisamos de uma lista filtrada: Apenas produtos com preço entre 1000 e 2000.",
+                question: "Qual operador de filtro é o ideal?",
+                options: [
+                    { sql: "WHERE preco > 1000 OR preco < 2000", correct: false },
+                    { sql: "WHERE preco BETWEEN 1000 AND 2000", correct: true },
+                    { sql: "WHERE preco IN (1000, 2000)", correct: false }
+                ],
+                success: "Filtro BETWEEN aplicado com sucesso.",
+                fail: "Use BETWEEN para intervalos de valores."
+            },
+            {
+                story: "10. Otimização de rede! O sistema está lento. O gerente quer ver APENAS o 'nome' e a 'quantidade' dos produtos, nada mais.",
+                question: "Como selecionar colunas específicas?",
+                options: [
+                    { sql: "SELECT * FROM produtos;", correct: false },
+                    { sql: "SELECT nome, quantidade FROM produtos;", correct: true },
+                    { sql: "SHOW nome, quantidade FROM produtos;", correct: false }
+                ],
+                success: "Consulta otimizada! Trazendo apenas dados necessários.",
+                fail: "SELECT * traz tudo e pesa o sistema. Especifique as colunas."
+            },
+            {
+                story: "11. Busca específica: Precisamos encontrar produtos que sejam da categoria 'Gamer' E custem mais de 500 reais.",
+                question: "Qual a lógica correta?",
+                options: [
+                    { sql: "WHERE categoria = 'Gamer' OR preco > 500", correct: false },
+                    { sql: "WHERE categoria = 'Gamer' AND preco > 500", correct: true },
+                    { sql: "WHERE categoria = 'Gamer' + preco > 500", correct: false }
+                ],
+                success: "Filtro lógico AND aplicado. Ambas condições são verdadeiras.",
+                fail: "OR traria gamers baratos ou produtos caros não-gamer. Use AND."
+            },
+
+            // BLOCO 5: MANUTENÇÃO E CONCEITOS
+            {
+                story: "12. Limpeza de Legado: Uma coluna antiga chamada 'obs_temporaria' não serve para nada.",
+                question: "Como remover essa coluna da estrutura?",
+                options: [
+                    { sql: "DELETE COLUMN obs_temporaria FROM produtos;", correct: false },
+                    { sql: "ALTER TABLE produtos DROP COLUMN obs_temporaria;", correct: true },
+                    { sql: "DROP TABLE obs_temporaria;", correct: false }
+                ],
+                success: "Coluna removida da estrutura.",
+                fail: "Para remover colunas, usamos ALTER TABLE ... DROP COLUMN."
+            },
+            {
+                story: "13. Relacionamento: Criamos a tabela 'categorias'. Para ligar 'produtos' a ela (1:N), precisamos de um campo especial.",
+                question: "O que criamos em 'produtos'?",
+                options: [
+                    { sql: "Primary Key (PK)", correct: false },
+                    { sql: "Foreign Key (FK)", correct: true },
+                    { sql: "Unique Key", correct: false }
+                ],
+                success: "Foreign Key criada para vincular as tabelas.",
+                fail: "Primary Key identifica. Foreign Key conecta tabelas."
+            },
+            {
+                story: "14. Conceito Final: O MySQL organiza dados em tabelas com linhas e colunas.",
+                question: "Que tipo de Banco de Dados é esse?",
+                options: [
+                    { sql: "Banco de Dados Relacional", correct: true },
+                    { sql: "Banco de Dados Não-Relacional (NoSQL)", correct: false },
+                    { sql: "Banco de Dados Orientado a Objetos", correct: false }
+                ],
+                success: "Exato! MySQL é um SGBD Relacional (RDBMS).",
+                fail: "Tabelas e Relacionamentos definem o modelo Relacional."
+            },
+            {
+                story: "15. Auditoria: Quem gerencia o acesso, a segurança e a execução das queries no servidor?",
+                question: "Qual é a sigla correta do software?",
+                options: [
+                    { sql: "BD (Banco de Dados)", correct: false },
+                    { sql: "SGBD (Sistema Gerenciador de Banco de Dados)", correct: true },
+                    { sql: "API (Interface de Programação)", correct: false }
+                ],
+                success: "MISSÃO CUMPRIDA! Sistema 100% Operacional.",
+                fail: "O BD são os dados. O software é o SGBD (ex: MySQL, Oracle)."
+            }
+        ];
+
+        // --- VARIÁVEIS DE ESTADO ---
+        let currentLevelIndex = 0;
+        let lives = 3;
+        let seconds = 0;
+        let timerInterval = null;
+        let isGameOver = false;
+
+        // Elementos do DOM
+        const screen = document.getElementById('output-screen');
+        const controls = document.getElementById('controls-area');
+        const progressFill = document.getElementById('progress-fill');
+        const levelIndicator = document.getElementById('level-indicator');
+        const livesDisplay = document.getElementById('lives');
+        const timerDisplay = document.getElementById('timer');
+
+        // --- FUNÇÕES DO SISTEMA ---
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const secs = (seconds % 60).toString().padStart(2, '0');
+                timerDisplay.innerText = `TEMPO: ${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateLivesDisplay() {
+            let hearts = "";
+            for(let i=0; i<lives; i++) hearts += "♥";
+            for(let i=lives; i<3; i++) hearts += "♡";
+            livesDisplay.innerText = `VIDAS: [${hearts}]`;
+            
+            if(lives === 2) livesDisplay.style.color = "#d29922"; // Amarelo
+            if(lives === 1) livesDisplay.style.color = "#ff7b72"; // Vermelho
+        }
+
+        function autoScroll() {
+            screen.scrollTop = screen.scrollHeight;
+        }
+
+        function typeMessage(text, className = '') {
+            const div = document.createElement('div');
+            div.className = className;
+            div.innerHTML = `> ${text}`;
+            screen.appendChild(div);
+            autoScroll();
+        }
+
+        function loadLevel() {
+            if (isGameOver) return;
+
+            if (currentLevelIndex >= levels.length) {
+                finishGame();
+                return;
+            }
+
+            const level = levels[currentLevelIndex];
+            
+            // Atualiza barra
+            const progress = ((currentLevelIndex) / levels.length) * 100;
+            progressFill.style.width = `${progress}%`;
+            levelIndicator.innerText = `NÍVEL: ${currentLevelIndex + 1}/${levels.length}`;
+
+            setTimeout(() => {
+                screen.innerHTML += "<hr style='border-color: #30363d; margin: 20px 0;'>";
+                typeMessage(level.story, 'msg-system');
+                setTimeout(() => {
+                    typeMessage(level.question, 'msg-npc');
+                    autoScroll();
+                    generateButtons(level);
+                }, 500);
+            }, 500);
+        }
+
+        function generateButtons(level) {
+            controls.innerHTML = "";
+            level.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.innerText = opt.sql;
+                btn.onclick = () => checkAnswer(opt, level);
+                controls.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(option, level) {
+            const btns = controls.querySelectorAll('button');
+            btns.forEach(b => b.disabled = true);
+
+            typeMessage(`EXECUTANDO: ${option.sql}`, 'msg-sql');
+
+            setTimeout(() => {
+                if (option.correct) {
+                    typeMessage(`[SUCESSO]: ${level.success}`, 'msg-success');
+                    currentLevelIndex++;
+                    setTimeout(loadLevel, 1500);
+                } else {
+                    handleError(level.fail);
+                    // Se não for Game Over, reabilita botões
+                    if (!isGameOver) {
+                        setTimeout(() => {
+                            btns.forEach(b => b.disabled = false);
+                        }, 1500);
+                    }
+                }
+            }, 600);
+        }
+
+        function handleError(failMessage) {
+            lives--;
+            updateLivesDisplay();
+            typeMessage(`[ERRO]: ${failMessage}`, 'msg-error');
+
+            if (lives === 0) {
+                gameOver();
+            } else {
+                // Mensagens de alerta baseadas nas vidas restantes
+                if (lives === 2) {
+                    typeMessage("ALERTA: Falha detectada! Leia a questão com atenção antes de responder.", 'msg-warning');
+                } else if (lives === 1) {
+                    typeMessage("CRÍTICO: Última tentativa! Se errar novamente, o sistema será bloqueado.", 'msg-warning');
+                }
+            }
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            stopTimer();
+            controls.innerHTML = "";
+            screen.innerHTML += "<br><br>";
+            typeMessage("========================================", 'msg-error');
+            typeMessage(" FALHA CRÍTICA - SISTEMA BLOQUEADO", 'msg-error');
+            typeMessage("========================================", 'msg-error');
+            typeMessage("Você excedeu o número de tentativas. O banco de dados foi corrompido.", 'msg-system');
+            
+            const btn = document.createElement('button');
+            btn.innerText = "REINICIAR SISTEMA (TENTAR NOVAMENTE)";
+            btn.style.textAlign = "center";
+            btn.style.backgroundColor = "#ff7b72";
+            btn.style.borderColor = "#ff7b72";
+            btn.onclick = () => location.reload();
+            controls.appendChild(btn);
+        }
+
+        function finishGame() {
+            stopTimer();
+            progressFill.style.width = "100%";
+            levelIndicator.innerText = "NÍVEL: 15/15";
+            controls.innerHTML = "";
+            screen.innerHTML += "<br><br>";
+            typeMessage("========================================", 'msg-success');
+            typeMessage(" TODOS OS SISTEMAS REESTABELECIDOS", 'msg-success');
+            typeMessage("========================================", 'msg-success');
+            typeMessage(`Tempo Total: ${timerDisplay.innerText.replace("TEMPO: ", "")}`, 'msg-npc');
+            typeMessage("Obrigado, SysAdmin. O banco de dados está salvo.", 'msg-npc');
+            
+            const btn = document.createElement('button');
+            btn.innerText = "JOGAR NOVAMENTE";
+            btn.style.textAlign = "center";
+            btn.onclick = () => location.reload();
+            controls.appendChild(btn);
+        }
+
+        // Inicia o jogo
+        window.onload = () => {
+            startTimer();
+            loadLevel();
+        };
+
+    </script>
+</body>
+</html>
