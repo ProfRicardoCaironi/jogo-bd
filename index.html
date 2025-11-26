@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Missão DBA: O Resgate do Catálogo - Hardcore Mode</title>
+    <title>Missão DBA: O Resgate do Catálogo - Hacker Edition</title>
     <style>
         /* --- ESTILO HACKER / TERMINAL --- */
         body {
@@ -60,7 +60,7 @@
         /* CORES DAS MENSAGENS */
         .msg-system { color: #58a6ff; font-weight: bold; margin-top: 10px; }
         .msg-error { color: #ff7b72; font-weight: bold; }
-        .msg-warning { color: #d29922; font-weight: bold; background-color: rgba(210, 153, 34, 0.1); padding: 5px; border-left: 3px solid #d29922; }
+        .msg-warning { color: #d29922; font-weight: bold; background-color: rgba(210, 153, 34, 0.1); padding: 5px; border-left: 3px solid #d29922; margin: 5px 0; }
         .msg-success { color: #3fb950; font-weight: bold; }
         .msg-npc { color: #d2a8ff; font-style: italic; }
         .msg-sql { color: #e3b341; background: #21262d; padding: 2px 5px; border-radius: 4px; }
@@ -123,6 +123,17 @@
             width: 0%;
             background-color: #3fb950;
             transition: width 0.5s ease-in-out;
+        }
+
+        /* IMAGEM DE GAME OVER */
+        .hacker-img {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            border: 2px solid #ff7b72;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            opacity: 0.9;
         }
 
         /* SCROLLBAR */
@@ -455,16 +466,21 @@
         function handleError(failMessage) {
             lives--;
             updateLivesDisplay();
-            typeMessage(`[ERRO]: ${failMessage}`, 'msg-error');
+            
+            // Contextualização do erro (O "Porquê" precisamos consertar)
+            typeMessage("ALERTA DE SISTEMA: Inconsistência de dados detectada! A correção imediata é necessária para evitar corrupção do banco.", 'msg-warning');
+            
+            // O erro técnico específico
+            typeMessage(`[ERRO TÉCNICO]: ${failMessage}`, 'msg-error');
 
             if (lives === 0) {
                 gameOver();
             } else {
                 // Mensagens de alerta baseadas nas vidas restantes
                 if (lives === 2) {
-                    typeMessage("ALERTA: Falha detectada! Leia a questão com atenção antes de responder.", 'msg-warning');
+                    typeMessage("AVISO: O Firewall registrou essa falha. Leia a questão com atenção antes de responder.", 'msg-warning');
                 } else if (lives === 1) {
-                    typeMessage("CRÍTICO: Última tentativa! Se errar novamente, o sistema será bloqueado.", 'msg-warning');
+                    typeMessage("CRÍTICO: Última tentativa! Se errar novamente, o servidor bloqueará seu IP.", 'msg-warning');
                 }
             }
         }
@@ -473,11 +489,18 @@
             isGameOver = true;
             stopTimer();
             controls.innerHTML = "";
-            screen.innerHTML += "<br><br>";
+            screen.innerHTML = ""; // Limpa a tela para a imagem
+
+            // Adiciona a imagem assustadora
+            const img = document.createElement('img');
+            img.src = "https://www.bitmag.com.br/wp-content/uploads/2022/03/Sete-adolescentes-sao-presos-por-conexao-com-hackers-do-Lapsus-acasacaiu-sebastiaan-stam-unsplash.png";
+            img.className = "hacker-img";
+            screen.appendChild(img);
+
             typeMessage("========================================", 'msg-error');
             typeMessage(" FALHA CRÍTICA - SISTEMA BLOQUEADO", 'msg-error');
             typeMessage("========================================", 'msg-error');
-            typeMessage("Você excedeu o número de tentativas. O banco de dados foi corrompido.", 'msg-system');
+            typeMessage("Você excedeu o número de tentativas. O banco de dados foi sequestrado.", 'msg-system');
             
             const btn = document.createElement('button');
             btn.innerText = "REINICIAR SISTEMA (TENTAR NOVAMENTE)";
